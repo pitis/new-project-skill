@@ -1,0 +1,11 @@
+{
+  "name": "new-project-skill",
+  "version": "0.1.0",
+  "description": "Scaffold a working SaaS monorepo in one command: pnpm + Turborepo, NestJS API, Postgres 18 + Prisma 7, Better Auth, Stripe, PostHog, Sentry, optional Astro landing, Nuxt app and WXT extension. Ships with its own CLAUDE.md, vault and ticket → worktree → PR flow, and is not done until its own gate passes.",
+  "author": {
+    "name": "pitis"
+  },
+  "homepage": "https://github.com/pitis/new-project-skill",
+  "repository": "https://github.com/pitis/new-project-skill",
+  "keywords": ["scaffold", "monorepo", "turborepo", "nestjs", "prisma", "nuxt", "astro", "saas"]
+}

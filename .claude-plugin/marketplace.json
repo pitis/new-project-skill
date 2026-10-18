@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "new-project-skill",
+  "description": "Scaffold a working SaaS monorepo with Claude Code",
+  "owner": {
+    "name": "pitis"
+  },
+  "plugins": [
+    {
+      "name": "new-project-skill",
+      "description": "One command generates a pnpm + Turborepo SaaS monorepo (NestJS, Postgres 18, Prisma 7, Better Auth, Stripe, Nuxt, Astro, WXT) and proves it works: install, migrations, lint, typecheck, unit and integration tests all pass before it reports.",
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/pitis/new-project-skill"
+    }
+  ]
+}
