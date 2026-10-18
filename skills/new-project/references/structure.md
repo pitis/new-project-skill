@@ -13,7 +13,7 @@
 │   └── api-client/     @<slug>/api-client Orval-generated vue-query hooks + apiFetch
 ├── docs/vault/         knowledge base (references/vault.md)
 ├── envs/               *.env (sops-encrypted) + schemas/<env>/.env.schema
-├── infra/compose.yaml  local Postgres 18 (+ Redis)
+├── infra/compose.yaml  local Postgres 18 (+ Redis with jobs)
 ├── infra/test/reset-test-db.sql
 ├── scripts/            env.sh, worktree.sh, update.sh, vault-check.sh, check-api-client.mjs
 ├── worktrees/          gitignored; one per ticket
@@ -57,16 +57,27 @@
 ## Makefile
 
 `up` / `down` / `logs` / `ps` / `psql` (Compose project `-p <slug>`), `migrate`,
-`migrate-dev name=…`, `seed`, `env-*`, `worktree`, `worktree-setup`, `update`,
-`test-int`, `check`, `wipe` (asks first).
+`migrate-dev name=…`, `seed`, `seed-dev`, `env-*`, `worktree`, `worktree-setup`, `update`,
+`test-int`, `test-e2e` (with `apps/app`), `check`, `wipe` (asks first).
 
-**Ports:** derive the Postgres host port from the slug (e.g. `54000 + cksum(slug) % 1000`)
-so several projects run side by side; containers named `<slug>_postgres`.
+**Ports:** derive host ports from the slug (e.g. Postgres `54000 + cksum(slug) % 1000`,
+Redis `63000 + …`, the same offset for the E2E API and app ports) so several projects run
+side by side; containers named `<slug>_postgres`, `<slug>_redis`.
 
-**`test-int`:** refuse unless `TEST_DB` ends in `_test`; start Postgres; create the test
-database if missing; `migrate deploy`; empty every table except `_prisma_migrations`
-(`infra/test/reset-test-db.sql`, a `TRUNCATE … CASCADE` over `pg_tables`, run with
-`ON_ERROR_STOP=1`); run the API's `test:int` with test env vars.
+**`test-int`:** refuse unless `TEST_DB` ends in `_test`; start Postgres (and Redis with
+jobs); create the test database if missing; `migrate deploy`; empty every table except
+`_prisma_migrations` (`infra/test/reset-test-db.sql`, a `TRUNCATE … CASCADE` over
+`pg_tables`, run with `ON_ERROR_STOP=1`); with jobs, `FLUSHDB` Redis database 1 and point
+`REDIS_URL` at it; run the API's `test:int` with test env vars.
+
+**`test-e2e`:** the same test-database preparation as `test-int`, then build the API and the
+app and run `pnpm --filter @<slug>/app test:e2e` (Playwright, Chromium only).
+
+**`check`:** `pnpm quality:check && make test-int` (and `make test-e2e` with `apps/app`).
+The flow's verify step: everything that must pass before a push.
+
+**`seed-dev`:** runs the API's `seed:dev` script (below). Never part of `seed`, which the
+production `migrate` target runs.
 
 ## packages/db
 
@@ -103,7 +114,10 @@ src/
 ├── modules/auth/   auth.factory (betterAuth), auth.guard, current-user.decorator,
 │                   me.controller (GET /v1/me, @ZodResponse), billing.plugins (Stripe or [])
 ├── modules/health/ GET /health → { status: 'ok', time } (@SkipThrottle, @ZodResponse)
+├── modules/mail/   mail.service (Resend or outbox), templates.ts, mail.processor (jobs only)
+├── modules/jobs/   jobs.module: BullModule.forRootAsync from REDIS_URL (jobs only)
 ├── scripts/openapi-export.ts   NestFactory.create(AppModule, { preview: true }) → openapi.json
+├── scripts/seed-dev.ts         the dev account (below)
 └── integration/app.int-spec.ts
 ```
 
@@ -115,6 +129,30 @@ src/
   frontend URLs + API origin, `emailAndPassword`, `advanced.database.generateId: false`
   (Postgres makes uuidv7), `useSecureCookies` on https, `rateLimit` off when `NODE_ENV=test`,
   plugins `bearer({ requireSignature: true })` + billing plugins.
+  `emailVerification: { sendOnSignUp: true, autoSignInAfterVerification: true,
+  sendVerificationEmail }` and `emailAndPassword.sendResetPassword`, both through
+  `MailService`, not awaited (traps). `requireEmailVerification` stays off: blocking sign-in
+  until verified is the owner's call.
+- **Mail.** `MailService.send({ to, template, data })`. With `RESEND_API_KEY` it sends
+  through Resend from `MAIL_FROM` and throws on the SDK's `error`; without it (local, test)
+  it logs the subject and link and appends the message to `outbox`, an array the integration
+  tests read. The config refuses production without `RESEND_API_KEY` and `MAIL_FROM`.
+  `templates.ts`: `verifyEmail`, `resetPassword` → `{ subject, html, text }`, plain template
+  strings with interpolated values escaped. Links are built from Better Auth's `token`, never
+  from its `url`: verification is the API's `/api/auth/verify-email?token=…&callbackURL=…`
+  with the callback set to the first `FRONTEND_URL` through `withUtm`; reset is
+  `<first FRONTEND_URL>/reset-password?token=…` through `withUtm` (utm.md, "Our own links").
+- **Jobs** (only when chosen). `JobsModule` registers BullMQ from `REDIS_URL` parsed into
+  connection options (`host`, `port`, `password`, `db`) and a `<slug>:` prefix. One real
+  queue, `mail`: `MailService.send` enqueues (`attempts: 5`, exponential backoff, delay from a
+  Luxon `Duration`), `MailProcessor` sends, passing the job id as Resend's idempotency key so
+  a retry never sends twice. Processors run in the API process (`app.enableShutdownHooks()`
+  so they drain on stop). shortcut: one process; move processors into a `worker.ts`
+  entrypoint when a job is CPU-heavy or needs its own scaling.
+- **`scripts/seed-dev.ts`** (`seed:dev`): refuses when `NODE_ENV` is `production`;
+  creates or resets `dev@<slug>.localhost` / `<slug>-dev` through `auth.api.signUpEmail` (so
+  the password hash is Better Auth's own), deleting the old account first, then marks the
+  email verified.
 - `AuthGuard` resolves the session from headers (cookie or bearer), sets `req.user` (id,
   email, name, emailVerified) and `Sentry.setUser({ id })` only. Every user-scoped query uses
   `req.user.id`, never an id from the body.
@@ -125,7 +163,7 @@ src/
   --env-file-if-exists=../../.env --import ./dist/instrument.js dist/main.js"`), `start`
   (`node --import ./dist/instrument.js dist/main.js`), `test` (vitest, excluding
   `*.int-spec.ts`), `test:int` (`vitest run src/integration --no-file-parallelism`),
-  `openapi:export`.
+  `openapi:export`, `seed:dev` (`node --env-file-if-exists=../../.env dist/scripts/seed-dev.js`).
 - `.swcrc` + `nest-cli.json` (SWC builder) exclude spec files. `vitest.config.ts`: `swc.vite({
   swcrc: false, inputSourceMap: false, … decorators })`, `hookTimeout: 30000`,
   `server.deps.external: [/\/generated\/client\//]` (see traps).
@@ -133,7 +171,7 @@ src/
   [TestOnlyController] })` → `createNestApplication({ bodyParser: false })` →
   `configureApp(app)` → `init()`; assertions listed in SKILL.md §3.4. Prove each guard by
   removing it once and watching its test fail.
-- Dockerfile: `node:24-alpine`, corepack pnpm 12.10.1, `pnpm install --frozen-lockfile
+- Dockerfile: `node:24-alpine`, corepack with the `packageManager` pnpm, `pnpm install --frozen-lockfile
   --filter @<slug>/api...`, build, `pnpm deploy`; targets `api` and one-shot `migrate`
   (`migrate deploy && seed`).
 
@@ -148,9 +186,17 @@ exporting `apiFetch` that throws `ApiError` (non-2xx, with status and body) or
 
 - **web** (Astro): marketing pages, `Analytics.astro` (PostHog behind the consent banner,
   UTM capture — references/utm.md), links to the app forward UTM params.
-- **app** (Nuxt): plugins for vue-query, PostHog (client), Sentry (client, `dataCollection`
-  off); `useAttribution()` composable; Better Auth Vue client; ESLint extends the root
-  config's `luxonOnly` block.
+- **app** (Nuxt): `ssr: false` (it sits behind a login; SEO is web's job), API URL from
+  `runtimeConfig.public.apiUrl`. Plugins for vue-query, PostHog (client), Sentry (client,
+  `dataCollection` off); `useAttribution()` composable; Better Auth Vue client; ESLint
+  extends the root config's `luxonOnly` block. Pages: `/sign-up`, `/login`,
+  `/forgot-password`, `/reset-password` (the email link's target), and `/` showing the
+  signed-in user's email from `GET /v1/me` (redirects to `/login` without a session).
+- **app E2E**: `apps/app/e2e/smoke.spec.ts` + `playwright.config.ts`, script `test:e2e`.
+  `webServer` starts the built API (test env, `_test` database, E2E port) and the built app
+  (`node .output/server/index.mjs`, E2E port, `NUXT_PUBLIC_API_URL` at the E2E API),
+  `reuseExistingServer: false`. The smoke test: sign up a fresh address → `/` shows it → sign
+  out → log in → `/` shows it again. Every ticket that changes the app adds to this suite.
 - **extension** (WXT + Vue): scoped Sentry `BrowserClient` (never `Sentry.init` — it would
   capture the host page's errors), every outgoing link through `withUtm(…, { source:
   'extension', … })`, bearer auth. Never change manifest permissions casually.
@@ -158,5 +204,6 @@ exporting `apiFetch` that throws `ApiError` (non-2xx, with status and body) or
 ## Deploy (Dokploy)
 
 `docker-compose.dokploy.yml`: `postgres` (18, volume) → `migrate` (one-shot) → `api`
-(`depends_on` migrate completed). Web and app on Vercel. Merged ≠ deployed unless the
+(`depends_on` migrate completed). With jobs, `redis` (8, volume, `--appendonly yes
+--maxmemory-policy noeviction`) and `api` depending on it. Locally, the same Redis flags. Web and app on Vercel. Merged ≠ deployed unless the
 project says so.

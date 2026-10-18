@@ -2,7 +2,7 @@
 
 | Area | Choice |
 |---|---|
-| Package manager | **pnpm 12.10.1** (`"packageManager": "pnpm@12.10.1"`), workspaces `apps/*`, `packages/*` |
+| Package manager | pnpm 12, the current release pinned exactly in `"packageManager"` (the Dockerfile uses the same), workspaces `apps/*`, `packages/*` |
 | Monorepo | Turborepo: `build`, `dev`, `lint`, `typecheck`, `test`, `test:int` |
 | Runtime | Node 24 (`engines` + `.nvmrc`), ESM everywhere (`"type": "module"`, `.js` import specifiers) |
 | Language | TypeScript `~6.0` |
@@ -19,14 +19,18 @@
 | Styling | Tailwind 4 |
 | Errors | Sentry 11 (`@sentry/nestjs` in the API, preloaded) |
 | Analytics | PostHog, EU host (`eu.i.posthog.com`) |
-| Email | Resend |
-| Tests | Vitest (+ `unplugin-swc` for Nest decorators), integration against Docker Postgres, Playwright E2E |
+| Email | Resend (`resend` SDK) behind one `MailService`; Better Auth's verification and password-reset emails from day one |
+| Jobs (optional) | BullMQ via `@nestjs/bullmq`, Redis 8; processors run in the API process |
+| Tests | Vitest (+ `unplugin-swc` for Nest decorators), integration against Docker Postgres, one Playwright smoke test in `apps/app` (`make test-e2e`) |
 | Quality | ESLint flat config, Prettier, husky hooks |
 | Secrets | sops + age (`envs/*.env`), varlock schemas |
-| Local | Docker Compose for Postgres (+ Redis); apps run on the host with `pnpm dev` |
-| Deploy | API: Dockerfile + Dokploy compose (postgres → migrate → api). Web/app: Vercel |
+| Local | Docker Compose for Postgres (+ Redis with jobs); apps run on the host with `pnpm dev` |
+| Deploy | API: Dockerfile + Dokploy compose (postgres (+ redis) → migrate → api). Web/app: Vercel |
 
 ## Pins (do not take "latest")
+
+Last checked 2026-10-10. At generation time, re-check each reason; drop a pin whose reason
+no longer holds and say so in the report.
 
 - **Prisma 7.10.0** — npm's `latest` tag points at an 8.0 release candidate.
 - **TypeScript 6** — TS 7 ships no compiler API; typescript-eslint, `astro check` and the

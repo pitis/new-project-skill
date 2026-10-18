@@ -34,15 +34,20 @@ Order: root workspace → `packages/db` → `packages/core` → `apps/api` → `
 ## 3. Prove it works — the project is not done until all of this passes
 
 1. `pnpm install` (no ignored-build errors — see traps).
-2. `make up`, then `make migrate-dev name=init` creates and applies the first migration.
+2. `make up`, then `make migrate-dev name=init` creates and applies the first migration,
+   then `make seed-dev` creates the dev account.
 3. `pnpm format && pnpm quality:check` (env check, Prettier, lint, typecheck, unit tests,
    api-client drift).
 4. `make test-int`: the API integration suite against the `_test` database, which must
    prove: `/health` 200; a response field not in the `@ZodResponse` schema is stripped; an
    invalid body is 400; sign-up through Better Auth stores a user whose id has version
-   nibble `7`; `/v1/me` without a session is 401.
-5. Boot the API (`pnpm --filter @<slug>/api dev`), `curl /health` and `/docs-json`.
-6. Each frontend builds.
+   nibble `7`; `/v1/me` without a session is 401; sign-up puts a verification email in the
+   mail outbox and its link marks the email verified; a password reset through the outbox
+   link lets the user sign in with the new password; with jobs, both emails went through the
+   `mail` queue.
+5. Boot the API (`pnpm --filter @<slug>/api dev`), `curl /health` and `/docs-json`, and sign
+   in as the dev account (`POST /api/auth/sign-in/email` → 200).
+6. Each frontend builds. With `apps/app`, `make test-e2e` passes.
 
 A failing step is fixed at its cause. Never `--no-verify`, never weaken a test to pass.
 Then `git add -A` and the first commit `Initial scaffold` (hooks run; no AI attribution).
@@ -50,5 +55,5 @@ Then `git add -A` and the first commit `Initial scaffold` (hooks run; no AI attr
 ## 4. Report
 
 What was generated, the gate results, and the manual setup left (from CLAUDE.md's checklist):
-Stripe products and webhook, PostHog project, Sentry projects, sops age key, DNS, Dokploy,
-Vercel.
+Stripe products and webhook, PostHog project, Sentry projects, Resend domain and key, sops
+age key, DNS, Dokploy, Vercel.

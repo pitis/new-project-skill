@@ -8,8 +8,8 @@ CLAUDE.md.
 - **pnpm 12 fails the install on any unapproved build script** (`ERR_PNPM_IGNORED_BUILDS`).
   `onlyBuiltDependencies` is no longer read: use the `allowBuilds:` map in
   `pnpm-workspace.yaml`. Deny `@scarf/scarf` (telemetry) explicitly.
-- **Prisma's npm `latest` is an 8.0 RC.** Pin 7.10.0 for `prisma`, `@prisma/client`,
-  `@prisma/adapter-pg`, `@prisma/client-runtime-utils`.
+- **Prisma's npm `latest` is an 8.0 RC** (as of 2026-10-10; see the pins in stack.md). Pin
+  7.10.0 for `prisma`, `@prisma/client`, `@prisma/adapter-pg`, `@prisma/client-runtime-utils`.
 - **Vitest + the generated Prisma client:** the client is a workspace file, so Vite transforms
   it and prints "Failed to load source map … client.js.map" on every run. Set
   `test.server.deps.external: [/\/generated\/client\//]`. With `unplugin-swc`, also
@@ -45,6 +45,14 @@ CLAUDE.md.
   user columns a database default.
 - **`FRONTEND_URL`'s first entry is the address put in every link the API sends** (emails,
   Stripe return URLs). Unset falls back to localhost: every link points at localhost.
+- **Resend's SDK doesn't throw**: `emails.send` resolves to `{ data, error }`. Check `error`
+  and throw, or every failed email (bad key, unverified domain) disappears without a trace.
+- **Don't await email sends inside Better Auth's hooks**: the response time then tells an
+  attacker whether an address has an account. Fire and forget, with the failure reported to
+  Sentry; tests poll the outbox.
+- **BullMQ needs Redis with `maxmemory-policy noeviction`** (otherwise Redis may evict job
+  keys under memory pressure), and connection options rather than a shared ioredis instance
+  (a Worker needs `maxRetriesPerRequest: null`).
 
 ## Database
 
@@ -55,6 +63,12 @@ CLAUDE.md.
   `migrate dev` drift, diff against a shadow database instead of resetting dev.
 - **`make test-int` empties the test database**: the name must end in `_test`, and two sessions
   running it at once break each other.
+
+## E2E
+
+- **Playwright reuses whatever already answers on its `webServer` port**: a dev server left
+  running there makes the suite test the wrong code. `reuseExistingServer: false`, and E2E
+  ports separate from the dev ports.
 
 ## Process
 

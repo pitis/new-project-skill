@@ -29,10 +29,12 @@ project installs, migrates and passes its own gate.
 | Database | Postgres 18, Prisma 7, `uuidv7()` ids |
 | Auth / payments | Better Auth (cookie + bearer), Stripe through `@better-auth/stripe` |
 | Frontends | Astro landing, Nuxt 4 app, WXT + Vue extension, Tailwind 4, Orval-generated vue-query client |
+| Email | Resend: verification and password-reset emails work from the first run; locally they're logged, not sent |
+| Jobs (optional) | BullMQ + Redis, with email sending as the first real queue |
 | Observability | Sentry 11 (privacy-safe defaults), PostHog EU |
 | Attribution | UTMs carried end to end: landing → account → Stripe checkout → PostHog |
 | Dates | Luxon only, enforced by ESLint |
-| Quality | ESLint, Prettier, Vitest, integration tests against a real Postgres `_test` database, husky hooks as the gate |
+| Quality | ESLint, Prettier, Vitest, integration tests against a real Postgres `_test` database, a Playwright smoke test, husky hooks + `make check` as the gate |
 | Secrets | sops + age encrypted `envs/`, varlock schemas |
 | Deploy | API: Dockerfile + Dokploy compose. Web and app: Vercel |
 
@@ -46,14 +48,18 @@ Plus the working setup around the code:
   code changed and the vault didn't.
 - **`make worktree` / `make update`**: one worktree per ticket, with envs linked and deps
   installed.
+- **A dev account** (`make seed-dev`) whose login is written in CLAUDE.md, so every browser
+  check signs in the same way.
 
 ## Done means verified
 
 The run ends only when all of these pass in the new project: `pnpm install`, the first
-migration, `pnpm quality:check` (env check, format, lint, typecheck, unit tests, api-client
-drift), `make test-int` (health, response stripping, 400 on a bad body, sign-up storing a
-uuidv7 id, 401 without a session), the API booting and serving `/health` and `/docs-json`,
-and every frontend building. Then it makes the first commit.
+migration and the dev account, `pnpm quality:check` (env check, format, lint, typecheck,
+unit tests, api-client drift), `make test-int` (health, response stripping, 400 on a bad
+body, sign-up storing a uuidv7 id, 401 without a session, the verification and
+password-reset emails end to end), the API booting and signing in the dev account, every
+frontend building, and the Playwright smoke test (sign up, sign out, log in). Then it makes
+the first commit.
 
 ## Install
 
@@ -83,6 +89,7 @@ Restart Claude Code after installing.
 
 - Node 24 with corepack (pnpm comes from the generated `packageManager` field)
 - Docker (local Postgres 18, and Redis with background jobs)
+- Playwright's Chromium (`pnpm exec playwright install chromium`) when the app is generated
 - `make`, and bash ≥ 4 (macOS ships 3.2: `brew install bash`)
 - `sops` and `age` for the encrypted env files
 - `gh` if tickets live on GitHub
@@ -90,8 +97,8 @@ Restart Claude Code after installing.
   the review step of the ticket flow
 
 The scaffold doesn't create external accounts. The generated CLAUDE.md ends with a
-checklist: age key, Stripe products and webhook, PostHog, Sentry, Resend domain, DNS, Dokploy,
-Vercel.
+checklist: age key, Stripe products and webhook, PostHog, Sentry, Resend domain and key, DNS,
+Dokploy, Vercel.
 
 ## Layout
 

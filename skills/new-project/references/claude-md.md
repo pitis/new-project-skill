@@ -32,8 +32,9 @@ limits), never for mechanics.
    `base=origin/<branch>` to stack on an open PR. An existing branch: its worktree, then
    **`make update` before writing code**. <Move the card to In progress.>
 3. Implement test-first. A test proves a fix only if it failed before the fix.
-4. Verify: `pnpm format && pnpm quality:check && make test-int`, then check the change in a
-   browser against the local stack.
+4. Verify: `pnpm format && make check`, then check the change in a browser against the local
+   stack, signed in as the dev account (below). A change to the app also extends the E2E
+   suite.
 5. Update the vault on this branch (docs/vault/CLAUDE.md).
 6. Push and open the PR: <`gh pr create` | `git push origin <branch>:refs/for/main/<topic>
    -o title="…" -o description="…"` (AGit; pushing again updates it) | `gh pr create`>.
@@ -60,10 +61,16 @@ limits), never for mechanics.
 - Remove a worktree with `git worktree remove` once its PR is merged or closed (check
   `git status` there first).
 
+## Local login
+
+`dev@<slug>.localhost` / `<slug>-dev`, email verified. `make seed-dev` creates or resets it.
+Use it for every browser check; never type a real person's credentials anywhere. Locally,
+emails aren't sent: the API logs each one with its link.
+
 ## Git
 
-- **Never `--no-verify`.** The husky hooks are the only gate; there is no CI. Fix the cause or
-  stop and ask.
+- **Never `--no-verify`.** There is no CI: the husky hooks (`quality:check`) and `make check`
+  before every push are the whole gate. Fix the cause or stop and ask.
 - **Never force-push, never rebase a pushed branch.** To catch up: `git fetch origin main &&
   git merge origin/main`. Same for `commit --amend` or `reset --hard` on pushed commits.
 - One feature = one PR; review fixes go on the same branch.
@@ -76,8 +83,9 @@ limits), never for mechanics.
 
 ## Commands
 
-`make up` · `make migrate-dev name=…` · `pnpm dev` · `pnpm quality:check` · `make test-int` ·
-`make check` · `pnpm api-client:generate` (after any API change) · `pnpm env:pull` (after
+`make up` · `make migrate-dev name=…` · `make seed-dev` · `pnpm dev` · `pnpm quality:check` ·
+`make test-int` · `make test-e2e` · `make check` (all of the gate: quality:check, test-int,
+test-e2e) · `pnpm api-client:generate` (after any API change) · `pnpm env:pull` (after
 editing `sops envs/local.env`).
 
 ## Env
@@ -107,6 +115,7 @@ branch when code changed and the vault did not: update it, or say why no update 
 - [ ] Stripe: products and prices, webhook to `<api>/api/auth/stripe/webhook`, price ids in envs
 - [ ] PostHog project (EU) → key in envs
 - [ ] Sentry projects (api, app, extension) → DSNs in envs
-- [ ] Resend domain verified (an unverified sender fails every email silently)
+- [ ] Resend: sending domain verified (an unverified sender fails every email),
+      `RESEND_API_KEY` and `MAIL_FROM` in `envs/production.env`
 - [ ] DNS, Dokploy app (API), Vercel projects (web, app)
 ```
