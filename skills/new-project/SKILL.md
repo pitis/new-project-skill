@@ -62,4 +62,4 @@ Then `git add -A` and the first commit `Initial scaffold` (hooks run; no AI attr
 
 What was generated, the gate results, and the manual setup left (from CLAUDE.md's checklist):
 Stripe products and webhook, PostHog project, Sentry projects, Resend domain and key, sops
-age key, DNS, Dokploy, Vercel.
+age key, DNS, API hosting, Vercel.

@@ -232,10 +232,10 @@ consume it). Cache keys are always the generated ones.
   capture the host page's errors), every outgoing link through `withUtm(…, { source:
   'extension', … })`, bearer auth. Never change manifest permissions casually.
 
-## Deploy (Dokploy)
+## Deploy
 
-`docker-compose.dokploy.yml`: `postgres` (18, volume at `/var/lib/postgresql`, see traps) →
-`migrate` (one-shot) → `api`
-(`depends_on` migrate completed). With jobs, `redis` (8, volume, `--appendonly yes
---maxmemory-policy noeviction`) and `api` depending on it. Locally, the same Redis flags. Web and app on Vercel. Merged ≠ deployed unless the
-project says so.
+No API host is chosen: the API ships as the Dockerfile's two images, for any container host.
+Each release runs the one-shot `migrate` image before the new `api` starts. Production
+Postgres must be 18; with jobs, production Redis runs with `--appendonly yes
+--maxmemory-policy noeviction` (local Redis in `infra/compose.yaml` uses the same flags).
+Web and app on Vercel. Merged ≠ deployed unless the project says so.

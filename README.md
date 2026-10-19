@@ -36,7 +36,7 @@ project installs, migrates and passes its own gate.
 | Dates | Luxon only, enforced by ESLint |
 | Quality | ESLint, Prettier, Vitest, integration tests against a real Postgres `_test` database, a Playwright smoke test, husky hooks + `make check` as the gate |
 | Secrets | sops + age encrypted `envs/`, varlock schemas |
-| Deploy | API: Dockerfile + Dokploy compose. Web and app: Vercel |
+| Deploy | API: Dockerfile, for any container host. Web and app: Vercel |
 
 Plus the working setup around the code:
 
@@ -99,7 +99,7 @@ Restart Claude Code after installing.
 
 The scaffold doesn't create external accounts. The generated CLAUDE.md ends with a
 checklist: age key, Stripe products and webhook, PostHog, Sentry, Resend domain and key, DNS,
-Dokploy, Vercel.
+API hosting, Vercel.
 
 ## Layout
 

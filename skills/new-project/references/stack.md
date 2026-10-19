@@ -25,7 +25,7 @@
 | Quality | ESLint flat config, Prettier, husky hooks |
 | Secrets | sops + age (`envs/*.env`), varlock schemas |
 | Local | Docker Compose for Postgres (+ Redis with jobs); apps run on the host with `pnpm dev` |
-| Deploy | API: Dockerfile + Dokploy compose (postgres (+ redis) → migrate → api). Web/app: Vercel |
+| Deploy | API: Dockerfile with `api` and one-shot `migrate` images, for any container host. Web/app: Vercel |
 
 ## Pins (do not take "latest")
 

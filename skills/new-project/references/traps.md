@@ -69,7 +69,7 @@ CLAUDE.md.
 
 - **`uuidv7()` needs Postgres 18.**
 - **Postgres 18 images keep their data in `/var/lib/postgresql/18/docker`**: mount the volume
-  at `/var/lib/postgresql`, not `/var/lib/postgresql/data`, in both compose files.
+  at `/var/lib/postgresql`, not `/var/lib/postgresql/data`, in every compose file.
 - **Never edit or rename an applied migration**: Prisma checksums them and `migrate deploy`
   refuses.
 - **The dev database is shared by all worktrees** and runs ahead of any one branch; for

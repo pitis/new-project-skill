@@ -125,5 +125,6 @@ branch when code changed and the vault did not: update it, or say why no update 
 - [ ] Sentry projects (api, app, extension) → DSNs in envs
 - [ ] Resend: sending domain verified (an unverified sender fails every email),
       `RESEND_API_KEY` and `MAIL_FROM` in `envs/production.env`
-- [ ] DNS, Dokploy app (API), Vercel projects (web, app)
+- [ ] DNS, API hosting (any container host: run the `migrate` image, then `api`), Vercel
+      projects (web, app)
 ```
