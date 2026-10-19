@@ -41,9 +41,10 @@ referrer; first touch kept, last replaced; `withUtm` keeps `?q=1`.
 ## Account
 
 - The app sends the stored attribution with sign-up; a Better Auth
-  `databaseHooks.user.create.before` validates it with a Zod schema and stores it on
-  `users.attribution` (`{ first, last }`). Linking an anonymous account to a real one keeps the
-  earliest `first`.
+  `databaseHooks.user.create.after(user, ctx)` validates `ctx.body.attribution` with
+  `storedAttributionSchema` (Zod) and writes it to `users.attribution` (`{ first, last }`)
+  with `prisma.user.update`. Not a Better Auth `json` additional field: its Prisma adapter
+  stores those as a JSON string (traps).
 - Integration test: sign-up with an attribution body → `users.attribution.first.utm_source`.
 
 ## Stripe

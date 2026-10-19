@@ -48,8 +48,9 @@ you notice.
 - exit 0 on `main` or a detached HEAD;
 - exit 0 if this branch was already reminded (marker file
   `$(git rev-parse --git-dir)/vault-reminded-<branch>`);
-- changed files = `git diff --name-only origin/main...HEAD` plus uncommitted
-  (`git status --porcelain`);
+- changed files = `git diff --name-only <base>...HEAD` (`origin/main`, or `main` with no
+  remote) plus uncommitted (`git status --porcelain --untracked-files=all`: without the
+  flag a new folder is one entry, and a new test file in it counts as code);
 - code = changes under `apps/` or `packages/`, excluding `*.spec.ts`, `*.int-spec.ts`,
   `*.test.ts` and `/generated/`;
 - if code changed and nothing under `docs/vault/` did: create the marker, print "This branch

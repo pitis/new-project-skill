@@ -91,7 +91,8 @@ Restart Claude Code after installing.
 - Docker (local Postgres 18, and Redis with background jobs)
 - Playwright's Chromium (`pnpm exec playwright install chromium`) when the app is generated
 - `make`, and bash ≥ 4 (macOS ships 3.2: `brew install bash`)
-- `sops` and `age` for the encrypted env files
+- `sops` and `age` for the encrypted env files, with an age key at
+  `~/.config/sops/age/keys.txt` (the skill asks before creating one)
 - `gh` if tickets live on GitHub
 - The [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official) plugin for
   the review step of the ticket flow

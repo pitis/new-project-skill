@@ -49,14 +49,20 @@ limits), never for mechanics.
    same in chat. The PR is ready for the owner only after this step.
 8. **Merge only on the owner's go.**
 
+<With no remote (tickets as pasted text): there is no PR. Step 6 commits on the branch, step
+7 reviews `git diff main...HEAD` and reports in chat instead of a PR comment, and step 8 is
+`git merge --squash <branch>` on `main`.>
+
 ## Worktrees
 
 - `make worktree` creates `worktrees/<PR number>--<slug>` from the latest `origin/main`
-  (the number is the branch's PR if it has one, else the next free number), links the
+  (local `main` with no remote; the number is the branch's PR if it has one, else the next
+  free number), links the
   gitignored env files from the main checkout, runs `pnpm install` and builds the Prisma
   client. A worktree made any other way: run `make worktree-setup` first (without its own
   `node_modules`, Node resolves the main checkout's and tests run against `main`'s deps).
-- `make update` merges `origin/main` (or the stacked base) into the branch and syncs deps; on
+- `make update` merges `origin/main` (`main` with no remote, or the stacked base) into the
+  branch and syncs deps; on
   a conflict it changes nothing and prints the `git merge` to run.
 - Remove a worktree with `git worktree remove` once its PR is merged or closed (check
   `git status` there first).
@@ -111,7 +117,9 @@ branch when code changed and the vault did not: update it, or say why no update 
 
 ## Manual setup (not done by the scaffold)
 
-- [ ] sops: age key in `~/.config/sops/age/keys.txt`, its public key in `.sops.yaml`
+- [ ] sops: back up the age key (`~/.config/sops/age/keys.txt`; lose it and `envs/` can't be
+      decrypted). Another machine's public key goes in `.sops.yaml`, then
+      `sops updatekeys envs/*.env`
 - [ ] Stripe: products and prices, webhook to `<api>/api/auth/stripe/webhook`, price ids in envs
 - [ ] PostHog project (EU) → key in envs
 - [ ] Sentry projects (api, app, extension) → DSNs in envs

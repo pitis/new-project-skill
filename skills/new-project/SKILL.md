@@ -28,16 +28,22 @@ choices). Use current stable versions at generation time, except the pins listed
 `references/vault.md`, attribution from `references/utm.md`. Avoid everything in
 `references/traps.md` — each entry already cost a debugging session.
 
+**Secrets.** Put the owner's age public key (`age-keygen -y ~/.config/sops/age/keys.txt`) in
+`.sops.yaml`; if there is no key, ask before creating one with `age-keygen -o` at that path.
+Write `envs/local.env` (local URLs and ports, the dev auth secret) and encrypt it in place
+with `sops encrypt -i`.
+
 Order: root workspace → `packages/db` → `packages/core` → `apps/api` → `packages/api-client`
-→ frontends → CLAUDE.md + vault + scripts → `git init`.
+→ frontends → CLAUDE.md + vault + scripts → `git init && git add -A` (staged, not
+committed: `api-client:check` compares the regenerated client with the index).
 
 ## 3. Prove it works — the project is not done until all of this passes
 
 1. `pnpm install` (no ignored-build errors — see traps).
-2. `make up`, then `make migrate-dev name=init` creates and applies the first migration,
-   then `make seed-dev` creates the dev account.
-3. `pnpm format && pnpm quality:check` (env check, Prettier, lint, typecheck, unit tests,
-   api-client drift).
+2. `make up`, then `pnpm env:pull`, then `make migrate-dev name=init` creates and applies the
+   first migration, then `make seed-dev` creates the dev account.
+3. `pnpm format && git add -A && pnpm quality:check` (env check, Prettier, lint, typecheck,
+   unit tests, api-client drift).
 4. `make test-int`: the API integration suite against the `_test` database, which must
    prove: `/health` 200; a response field not in the `@ZodResponse` schema is stripped; an
    invalid body is 400; sign-up through Better Auth stores a user whose id has version

@@ -8,8 +8,13 @@ CLAUDE.md.
 - **pnpm 12 fails the install on any unapproved build script** (`ERR_PNPM_IGNORED_BUILDS`).
   `onlyBuiltDependencies` is no longer read: use the `allowBuilds:` map in
   `pnpm-workspace.yaml`. Deny `@scarf/scarf` (telemetry) explicitly.
-- **Prisma's npm `latest` is an 8.0 RC** (as of 2026-10-10; see the pins in stack.md). Pin
-  7.10.0 for `prisma`, `@prisma/client`, `@prisma/adapter-pg`, `@prisma/client-runtime-utils`.
+- **Prisma's npm `latest` is an 8.0 RC** (as of 2026-10-19; see the pins in stack.md). Pin
+  7.10.x for `prisma`, `@prisma/client`, `@prisma/adapter-pg`, `@prisma/client-runtime-utils`.
+- **Prisma 7 doesn't read `.env`**: `prisma.config.ts` loads it itself (structure.md).
+- **nestjs-zod 5.5 declares peers for NestJS ≤ 11** (`pnpm peers check` warns). It works with
+  NestJS 12, as the integration suite proves; re-check on every upgrade.
+- **A bare `generated/` in `.gitignore` also hides Orval's client**
+  (`packages/api-client/src/generated/`): it's never committed and the drift check goes blind.
 - **Vitest + the generated Prisma client:** the client is a workspace file, so Vite transforms
   it and prints "Failed to load source map … client.js.map" on every run. Set
   `test.server.deps.external: [/\/generated\/client\//]`. With `unplugin-swc`, also
@@ -29,16 +34,22 @@ CLAUDE.md.
 - **Sentry must be preloaded** (`node --import ./dist/instrument.js`). An init in `main.ts`
   catches errors but never traces (ESM evaluates imports first), and Prettier's
   organize-imports would sort a top-of-file import out of position anyway.
-- **Sentry 11 collects user info, cookies, headers, bodies and query strings by default.**
-  Every `init` (API, app, extension) sets `dataCollection: { userInfo: false, cookies: false,
-  httpHeaders: false, httpBodies: [], urlQueryParams: false }`. `Sentry.setUser` gets the id
-  only.
+- **Sentry 11 collects user info, cookies, headers, bodies, query strings, database query
+  data, queue payloads and stack-frame variables by default.** With jobs, that sends mail
+  jobs (addresses plus verify/reset tokens) to Sentry. Every `init` (API, app, extension)
+  sets `dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies:
+  [], urlQueryParams: false, databaseQueryData: false, queues: false, stackFrameVariables:
+  false }`. `Sentry.setUser` gets the id only.
 - **Sample-rate parsing:** `Number(process.env.X ?? 0.1)` turns `''` (Compose's rendering of
   an unset `${X:-}`) into 0 and silently disables tracing. Treat empty/NaN/out-of-range as the
   default.
 - **Prisma error classes** must come from the generated runtime, not
   `@prisma/client-runtime-utils` (`instanceof` silently false).
-- **`set-auth-token` must be in CORS `exposedHeaders`** for bearer clients.
+- **`set-auth-token`**: Better Auth's bearer plugin exposes it on its own responses; keep it in
+  CORS `exposedHeaders` for every other route.
+- **Better Auth `json` additional fields are stored as a JSON string** by its Prisma adapter
+  (`jsonb_typeof` = `string`, so `attribution.first` is undefined). Write JSON columns with
+  Prisma directly (utm.md, "Account").
 - **Swagger cookie auth:** pass the scheme name as `addCookieAuth`'s third argument or
   `@ApiCookieAuth` references a missing scheme.
 - **Better Auth sign-up with a NOT NULL column it doesn't set 500s every sign-up**: give new
@@ -57,6 +68,8 @@ CLAUDE.md.
 ## Database
 
 - **`uuidv7()` needs Postgres 18.**
+- **Postgres 18 images keep their data in `/var/lib/postgresql/18/docker`**: mount the volume
+  at `/var/lib/postgresql`, not `/var/lib/postgresql/data`, in both compose files.
 - **Never edit or rename an applied migration**: Prisma checksums them and `migrate deploy`
   refuses.
 - **The dev database is shared by all worktrees** and runs ahead of any one branch; for

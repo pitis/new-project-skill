@@ -32,14 +32,28 @@
   `env:pull` / `env:check` / `env:validate` (`scripts/env.sh`); `prepare: husky`.
 - `pnpm-workspace.yaml`: packages + an **`allowBuilds:` map** (pnpm 12 fails the install on
   any unlisted build script): `@prisma/client`, `@prisma/engines`, `prisma`, `@swc/core`,
-  `esbuild`, `@sentry/cli` → `true`; `@scarf/scarf` → `false` (install telemetry from
-  swagger-ui).
+  `esbuild`, `@sentry/cli`, `vue-demi` → `true`; `@scarf/scarf` (install telemetry from
+  swagger-ui), `core-js` (posthog-js funding banner), `msgpackr-extract` (BullMQ's optional
+  native addon: it falls back to JS, and on Alpine node-gyp would fail the install) →
+  `false`. A new dependency with a build script gets a line here, with the reason.
+- `.gitignore`: `node_modules/`, build outputs (`dist/`, `.output/`, `.nuxt/`, `.astro/`,
+  `.wxt/`, `.turbo/`), `packages/db/generated/` (never a bare `generated/`, see traps),
+  `.env`, `.env.*`, `!.env.schema`, `worktrees/`, Playwright's `test-results/` and
+  `playwright-report/`.
+- ESLint: `defineConfig` from `eslint/config` (typescript-eslint's `tseslint.config()` is
+  deprecated), typescript-eslint, `eslint-plugin-vue` `flat/essential` (`flat/recommended`'s
+  formatting rules fight Prettier), `eslint-plugin-astro` for web, and the `luxonOnly` block
+  (stack.md).
+- Telemetry off everywhere: `ASTRO_TELEMETRY_DISABLED=1` in web's scripts, `telemetry:
+  false` in `nuxt.config.ts`, `VARLOCK_TELEMETRY_DISABLED=1` in `scripts/env.sh`.
 - `turbo.json`: `build` outputs `dist/**`, `generated/**`, `.output/**`, `.nuxt/**`;
   `test` and `test:int` uncached and `dependsOn: ["^build"]`; `typecheck` depends on
   `^build` **and its own `build`** (Nuxt/Astro typecheck against generated types).
 - Prettier: `singleQuote`, `trailingComma: 'all'`, `printWidth: 100`, `arrowParens:
   'always'`, `endOfLine: 'lf'`, plugin `prettier-plugin-organize-imports`. `.prettierignore`
-  mirrors `.gitignore` plus `docs/vault/`, `envs/`, migrations, generated client, lockfile.
+  mirrors `.gitignore` plus `docs/vault/`, `envs/`, migrations, `pnpm-lock.yaml`, and Orval's
+  output: `packages/api-client/src/generated/` and `packages/api-client/openapi.json`
+  (Prettier rewriting them makes `api-client:check` fail forever).
 - `tsconfig.base.json`: `module`/`moduleResolution` `nodenext`, `strict`,
   `experimentalDecorators`, `emitDecoratorMetadata`, `isolatedModules`, target ES2023.
 - `.husky/pre-commit`: `scripts/env.sh check --staged` then `pnpm quality:check`.
@@ -52,7 +66,9 @@
   in `envs/` that is not a sops-encrypted `<name>.env` or a `schemas/<name>/.env.schema`),
   `validate` (each file against its schema with varlock; values reach it through
   `sops exec-env`, never the disk), `show <name>` (decrypted and quoted, to paste into a
-  host's env settings). Needs bash ≥ 4 (`mapfile`).
+  host's env settings). Needs bash ≥ 4 (`mapfile`). In the schemas, connection strings use
+  varlock's `url` type with `allowedProtocols` (`postgresql`, `redis`): a bare `url` will
+  reject them in varlock's next major.
 
 ## Makefile
 
@@ -60,15 +76,18 @@
 `migrate-dev name=…`, `seed`, `seed-dev`, `env-*`, `worktree`, `worktree-setup`, `update`,
 `test-int`, `test-e2e` (with `apps/app`), `check`, `wipe` (asks first).
 
-**Ports:** derive host ports from the slug (e.g. Postgres `54000 + cksum(slug) % 1000`,
-Redis `63000 + …`, the same offset for the E2E API and app ports) so several projects run
-side by side; containers named `<slug>_postgres`, `<slug>_redis`.
+**Ports:** one offset from the slug (`cksum(slug) % 1000`) added to fixed bases, so several
+projects run side by side: API `30000`, app `31000`, web `32000`, E2E API `33000`, E2E app
+`34000`, Postgres `54000`, Redis `63000`. Containers named `<slug>_postgres`,
+`<slug>_redis`.
 
 **`test-int`:** refuse unless `TEST_DB` ends in `_test`; start Postgres (and Redis with
 jobs); create the test database if missing; `migrate deploy`; empty every table except
 `_prisma_migrations` (`infra/test/reset-test-db.sql`, a `TRUNCATE … CASCADE` over
 `pg_tables`, run with `ON_ERROR_STOP=1`); with jobs, `FLUSHDB` Redis database 1 and point
-`REDIS_URL` at it; run the API's `test:int` with test env vars.
+`REDIS_URL` at it; turbo-build the API's dependencies, then run `pnpm --filter @<slug>/api
+test:int` with test env vars (directly, not through turbo, whose strict env mode can strip
+them).
 
 **`test-e2e`:** the same test-database preparation as `test-int`, then build the API and the
 app and run `pnpm --filter @<slug>/app test:e2e` (Playwright, Chromium only).
@@ -83,10 +102,15 @@ production `migrate` target runs.
 
 - Schema is a **folder**: `prisma/schema/schema.prisma` (generator + datasource),
   `auth.prisma` (User, Session, Account, Verification), `billing.prisma` (Stripe
-  `Subscription`, only with Stripe). Generator `prisma-client-js`, `output =
+  `Subscription`, only with Stripe: the plugin's fields plus `created_at`/`updated_at`,
+  since the plugin writes `updatedAt`). Generator `prisma-client-js`, `output =
   "../../generated/client"`. Datasource has **no `url`**.
-- `prisma.config.ts`: `schema: 'prisma/schema'`, migrations path, seed, `datasource.url`
-  from `DATABASE_URL`, optional `shadowDatabaseUrl` from `SHADOW_DATABASE_URL`.
+- `prisma.config.ts`: loads `../../.env` when it exists (`process.loadEnvFile`; Prisma 7
+  doesn't read `.env`, and existing variables win, so `make test-int`'s override holds);
+  `schema: 'prisma/schema'`, migrations path, seed, `datasource.url` from `DATABASE_URL`,
+  optional `shadowDatabaseUrl` from `SHADOW_DATABASE_URL`.
+- `package.json` `"files"`: `dist`, `generated` (and `prisma`), so `pnpm deploy` keeps the
+  gitignored build output. Same for `packages/core` (`dist`).
 - Every id `String @id @default(dbgenerated("uuidv7()")) @db.Uuid`; columns snake_case via
   `@map`, tables via `@@map`; times `@db.Timestamptz(3)`.
 - `users` also has `stripe_customer_id` (nullable) and `attribution Json?`.
@@ -144,9 +168,11 @@ src/
   `<first FRONTEND_URL>/reset-password?token=…` through `withUtm` (utm.md, "Our own links").
 - **Jobs** (only when chosen). `JobsModule` registers BullMQ from `REDIS_URL` parsed into
   connection options (`host`, `port`, `password`, `db`) and a `<slug>:` prefix. One real
-  queue, `mail`: `MailService.send` enqueues (`attempts: 5`, exponential backoff, delay from a
-  Luxon `Duration`), `MailProcessor` sends, passing the job id as Resend's idempotency key so
-  a retry never sends twice. Processors run in the API process (`app.enableShutdownHooks()`
+  queue, `mail`: `MailService.send` enqueues with `jobId: randomUUID()` (`attempts: 5`,
+  exponential backoff, delay from a Luxon `Duration`), `MailProcessor` sends, passing the job
+  id as Resend's idempotency key so a retry never sends twice. Never BullMQ's default ids: a
+  per-queue counter that restarts after Redis loses its data, and Resend silently drops a
+  reused key within 24 hours. Processors run in the API process (`app.enableShutdownHooks()`
   so they drain on stop). shortcut: one process; move processors into a `worker.ts`
   entrypoint when a job is CPU-heavy or needs its own scaling.
 - **`scripts/seed-dev.ts`** (`seed:dev`): refuses when `NODE_ENV` is `production`;
@@ -173,14 +199,18 @@ src/
   removing it once and watching its test fail.
 - Dockerfile: `node:24-alpine`, corepack with the `packageManager` pnpm, `pnpm install --frozen-lockfile
   --filter @<slug>/api...`, build, `pnpm deploy`; targets `api` and one-shot `migrate`
-  (`migrate deploy && seed`).
+  (`migrate deploy && seed`; it deploys `packages/db` without `--prod`, since the Prisma CLI
+  is a devDependency).
 
 ## packages/api-client
 
 Orval: input `openapi.json` (written by the API's export), `mode: 'split'`, output
 `src/generated/`, `client: 'vue-query'`, `httpClient: 'fetch'`, mutator `src/fetcher.ts`
 exporting `apiFetch` that throws `ApiError` (non-2xx, with status and body) or
-`NetworkError`, and returns the body. Cache keys are always the generated ones.
+`NetworkError`, and returns the body; `override.fetch.includeHttpResponseReturnType: false`
+so the generated functions return the body too. Split mode emits extensionless imports, so
+this package's tsconfig is `module: esnext`, `moduleResolution: bundler` (only bundlers
+consume it). Cache keys are always the generated ones.
 
 ## Frontends
 
@@ -189,7 +219,8 @@ exporting `apiFetch` that throws `ApiError` (non-2xx, with status and body) or
 - **app** (Nuxt): `ssr: false` (it sits behind a login; SEO is web's job), API URL from
   `runtimeConfig.public.apiUrl`. Plugins for vue-query, PostHog (client), Sentry (client,
   `dataCollection` off); `useAttribution()` composable; Better Auth Vue client; ESLint
-  extends the root config's `luxonOnly` block. Pages: `/sign-up`, `/login`,
+  extends the root config's `luxonOnly` block. The same consent banner as web, shown when
+  the consent cookie is unset (people often land on the app directly). Pages: `/sign-up`, `/login`,
   `/forgot-password`, `/reset-password` (the email link's target), and `/` showing the
   signed-in user's email from `GET /v1/me` (redirects to `/login` without a session).
 - **app E2E**: `apps/app/e2e/smoke.spec.ts` + `playwright.config.ts`, script `test:e2e`.
@@ -203,7 +234,8 @@ exporting `apiFetch` that throws `ApiError` (non-2xx, with status and body) or
 
 ## Deploy (Dokploy)
 
-`docker-compose.dokploy.yml`: `postgres` (18, volume) → `migrate` (one-shot) → `api`
+`docker-compose.dokploy.yml`: `postgres` (18, volume at `/var/lib/postgresql`, see traps) →
+`migrate` (one-shot) → `api`
 (`depends_on` migrate completed). With jobs, `redis` (8, volume, `--appendonly yes
 --maxmemory-policy noeviction`) and `api` depending on it. Locally, the same Redis flags. Web and app on Vercel. Merged ≠ deployed unless the
 project says so.
