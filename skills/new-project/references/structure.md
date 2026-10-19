@@ -238,4 +238,5 @@ No API host is chosen: the API ships as the Dockerfile's two images, for any con
 Each release runs the one-shot `migrate` image before the new `api` starts. Production
 Postgres must be 18; with jobs, production Redis runs with `--appendonly yes
 --maxmemory-policy noeviction` (local Redis in `infra/compose.yaml` uses the same flags).
-Web and app on Vercel. Merged ≠ deployed unless the project says so.
+Web and app are static builds (Astro's static output, Nuxt with `ssr: false`), so they
+host on Vercel or Cloudflare with no code change; the owner picks at deploy time. Merged ≠ deployed unless the project says so.

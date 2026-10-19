@@ -13,7 +13,7 @@
 | Payments | Stripe via `@better-auth/stripe`, one webhook at `/api/auth/stripe/webhook` |
 | API client | Orval → `packages/api-client`, `client: 'vue-query'`, `httpClient: 'fetch'`, one `apiFetch` mutator |
 | Dates | **Luxon only**, everywhere, tests included |
-| Web | Astro (landing/marketing), on Vercel |
+| Web | Astro (landing/marketing), static output |
 | App | Nuxt 4 (Vue 3) |
 | Extension | WXT + Vue |
 | Styling | Tailwind 4 |
@@ -25,7 +25,7 @@
 | Quality | ESLint flat config, Prettier, husky hooks |
 | Secrets | sops + age (`envs/*.env`), varlock schemas |
 | Local | Docker Compose for Postgres (+ Redis with jobs); apps run on the host with `pnpm dev` |
-| Deploy | API: Dockerfile with `api` and one-shot `migrate` images, for any container host. Web/app: Vercel |
+| Deploy | API: Dockerfile with `api` and one-shot `migrate` images, for any container host. Web/app: static builds on Vercel or Cloudflare |
 
 ## Pins (do not take "latest")
 
